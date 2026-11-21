@@ -197,3 +197,29 @@ function fromMaintenance(s: Maintenance, e: MachineEvent, now: number): Transiti
       return refuse('TRANSITION_FORBIDDEN', s);
   }
 }
+
+export function statesEqual(a: MachineState, b: MachineState): boolean {
+  if (a.kind !== b.kind) return false;
+  switch (a.kind) {
+    case 'IDLE':
+      return true;
+    case 'CLIENT_ACTIVE': {
+      const o = b as Extract<MachineState, { kind: 'CLIENT_ACTIVE' }>;
+      return (
+        a.userId === o.userId &&
+        a.startedAt === o.startedAt &&
+        a.lastActivityAt === o.lastActivityAt &&
+        a.phase === o.phase
+      );
+    }
+    case 'MAINTENANCE': {
+      const o = b as Extract<MachineState, { kind: 'MAINTENANCE' }>;
+      return a.adminId === o.adminId && a.startedAt === o.startedAt && a.lastActivityAt === o.lastActivityAt;
+    }
+  }
+}
+
+/** Ramène une session expirée à IDLE (utilisé par la lecture de l'état, sans événement). */
+export function settle(s: MachineState, now: number, cfg: TimeoutConfig): MachineState {
+  return isExpired(s, now, cfg) ? IDLE : s;
+}
