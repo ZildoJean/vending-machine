@@ -1,5 +1,4 @@
 # Distributeur de boissons (simulation)
-
 Prérequis : Node >= 20, pnpm.
 
     pnpm install
