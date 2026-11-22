@@ -19,3 +19,9 @@ export type MachineError =
   | 'SESSION_EXPIRED' //         la session de l'acteur a expiré (état déjà ramené à IDLE)
   | 'NO_SESSION' //              aucune session correspondante
   | 'TRANSITION_FORBIDDEN'; //   événement sans sens dans l'état courant
+
+export interface DispenseConfig {
+  /** Délai maximal pour UNE unité : au-delà, elle est considérée non délivrée (et sera remboursée). */
+  readonly unitTimeoutMs: number;
+}
+export const DISPENSE_CONFIG: DispenseConfig = { unitTimeoutMs: 10_000 };

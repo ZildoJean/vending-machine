@@ -3,6 +3,7 @@ import type { MachineStateStore, TxContext, UnitOfWork } from '../../application
 import type { MachineState } from '../../domain/machine-state';
 import type { Db, Tx } from './client';
 import { LockTimeoutError, PG_LOCK_NOT_AVAILABLE, pgErrorCode } from './errors';
+import { PgCatalogStore, PgOrderStore, PgWalletStore } from './pg-checkout-stores';
 import { rowToState, stateToValues } from './machine-state-mapper';
 import { machineState } from './schema';
 
@@ -52,7 +53,12 @@ export class PgUnitOfWork implements UnitOfWork {
       return await this.db.transaction(async (tx) => {
         // entier validé ci-dessus : SET ne accepte pas de paramètre lié
         await tx.execute(sql.raw(`SET LOCAL lock_timeout = ${this.opts.lockTimeoutMs}`));
-        return work({ machine: new PgMachineStateStore(tx) });
+        return work({
+          machine: new PgMachineStateStore(tx),
+          orders: new PgOrderStore(tx),
+          catalog: new PgCatalogStore(tx),
+          wallet: new PgWalletStore(tx),
+        });
       });
     } catch (e) {
       if (pgErrorCode(e) === PG_LOCK_NOT_AVAILABLE) throw new LockTimeoutError({ cause: e });

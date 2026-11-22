@@ -18,3 +18,6 @@ export type CheckoutFailure =
   | { readonly code: 'INSUFFICIENT_FUNDS'; readonly totalAr: number; readonly missingAr: number };
 
 export type CheckoutErrorCode = CheckoutFailure['code'];
+
+/** Erreurs de la requête elle-même (avant toute règle métier). */
+export type CheckoutRequestError = 'INVALID_IDEMPOTENCY_KEY' | 'IDEMPOTENCY_KEY_REUSED';
