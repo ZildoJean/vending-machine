@@ -11,7 +11,7 @@ beforeAll(async () => {
   pool = db.pool;
 });
 afterAll(async () => {
-  await db.drop();
+  await db?.drop(); // db peut être absent si la création a échoué : ne pas masquer la vraie erreur
 });
 
 let seq = 0;
@@ -22,24 +22,30 @@ async function one<T = Record<string, unknown>>(sql: string, params: unknown[] =
   return r.rows[0] as T;
 }
 const mkUser = async (role: 'CLIENT' | 'ADMIN' = 'CLIENT'): Promise<string> =>
-  (await one<{ id: string }>(
-    'INSERT INTO users (login, role, pin_hash, created_at) VALUES ($1, $2, $3, 1) RETURNING id',
-    [`user_${next()}`, role, 'hash'],
-  )).id;
+  (
+    await one<{ id: string }>('INSERT INTO users (login, role, pin_hash, created_at) VALUES ($1, $2, $3, 1) RETURNING id', [
+      `user_${next()}`,
+      role,
+      'hash',
+    ])
+  ).id;
 const balanceOf = async (userId: string): Promise<number> =>
   (await one<{ balance_ar: number }>('SELECT balance_ar FROM wallets WHERE user_id = $1', [userId])).balance_ar;
 const ledgerCount = async (userId: string): Promise<number> =>
   Number((await one<{ n: string }>('SELECT count(*) AS n FROM wallet_ledger WHERE user_id = $1', [userId])).n);
 const deposit = (userId: string, amount: number, insertionId = `ins-${next()}`) =>
-  pool.query(
-    `INSERT INTO wallet_ledger (user_id, type, amount_ar, insertion_id, created_at) VALUES ($1, 'DEPOSIT', $2, $3, 1)`,
-    [userId, amount, insertionId],
-  );
+  pool.query(`INSERT INTO wallet_ledger (user_id, type, amount_ar, insertion_id, created_at) VALUES ($1, 'DEPOSIT', $2, $3, 1)`, [
+    userId,
+    amount,
+    insertionId,
+  ]);
 const ledger = (userId: string, type: 'PURCHASE' | 'REFUND', amount: number, orderId: string) =>
-  pool.query(
-    `INSERT INTO wallet_ledger (user_id, type, amount_ar, order_id, created_at) VALUES ($1, $2, $3, $4, 1)`,
-    [userId, type, amount, orderId],
-  );
+  pool.query(`INSERT INTO wallet_ledger (user_id, type, amount_ar, order_id, created_at) VALUES ($1, $2, $3, $4, 1)`, [
+    userId,
+    type,
+    amount,
+    orderId,
+  ]);
 const mkOrder = async (
   userId: string,
   total: number,
@@ -47,26 +53,27 @@ const mkOrder = async (
 ): Promise<string> => {
   const status = o.status ?? 'DISPENSED';
   const finished = o.finished === undefined ? (status === 'PENDING_DISPENSE' ? null : 2) : o.finished;
-  return (await one<{ id: string }>(
-    `INSERT INTO orders (user_id, status, total_ar, refunded_ar, idempotency_key, created_at, finished_at)
+  return (
+    await one<{ id: string }>(
+      `INSERT INTO orders (user_id, status, total_ar, refunded_ar, idempotency_key, created_at, finished_at)
      VALUES ($1, $2, $3, $4, $5, 1, $6) RETURNING id`,
-    [userId, status, total, o.refunded ?? 0, `idem-key-${next()}`, finished],
-  )).id;
+      [userId, status, total, o.refunded ?? 0, `idem-key-${next()}`, finished],
+    )
+  ).id;
 };
 const mkProduct = async (price = 1_500): Promise<string> =>
-  (await one<{ id: string }>('INSERT INTO products (name, price_ar) VALUES ($1, $2) RETURNING id', [
-    `produit ${next()}`,
-    price,
-  ])).id;
+  (await one<{ id: string }>('INSERT INTO products (name, price_ar) VALUES ($1, $2) RETURNING id', [`produit ${next()}`, price])).id;
 const stockOf = async (productId: string): Promise<number> =>
   (await one<{ stock: number }>('SELECT stock FROM products WHERE id = $1', [productId])).stock;
 const movement = (productId: string, delta: number, reason: string, orderId: string | null, actorId: string | null) =>
-  pool.query(
-    'INSERT INTO stock_movements (product_id, delta, reason, order_id, actor_id, created_at) VALUES ($1, $2, $3, $4, $5, 1)',
-    [productId, delta, reason, orderId, actorId],
-  );
-const restock = (productId: string, adminId: string, qty: number) =>
-  movement(productId, qty, 'RESTOCK', null, adminId);
+  pool.query('INSERT INTO stock_movements (product_id, delta, reason, order_id, actor_id, created_at) VALUES ($1, $2, $3, $4, $5, 1)', [
+    productId,
+    delta,
+    reason,
+    orderId,
+    actorId,
+  ]);
+const restock = (productId: string, adminId: string, qty: number) => movement(productId, qty, 'RESTOCK', null, adminId);
 
 describe('migrations', () => {
   it('le singleton machine_state est amorcé en IDLE', async () => {
@@ -80,7 +87,9 @@ describe('products (prix = multiple de 100, 0 < prix <= 100 000)', () => {
     await expect(pool.query('INSERT INTO products (name, price_ar) VALUES ($1, $2)', [`ok ${next()}`, price])).resolves.toBeDefined();
   });
   it.each([0, -100, 1_250, 99, 100_100])('rejette le prix %i', async (price) => {
-    await expect(pool.query('INSERT INTO products (name, price_ar) VALUES ($1, $2)', [`ko ${next()}`, price])).rejects.toThrow(/products_price_ck/);
+    await expect(pool.query('INSERT INTO products (name, price_ar) VALUES ($1, $2)', [`ko ${next()}`, price])).rejects.toThrow(
+      /products_price_ck/,
+    );
   });
   it('nom unique sans tenir compte de la casse', async () => {
     await pool.query(`INSERT INTO products (name, price_ar) VALUES ('Coca Zéro', 1500)`);
@@ -88,7 +97,9 @@ describe('products (prix = multiple de 100, 0 < prix <= 100 000)', () => {
   });
   it('nom vide ou trop long rejeté', async () => {
     await expect(pool.query(`INSERT INTO products (name, price_ar) VALUES ('', 1500)`)).rejects.toThrow(/products_name_len_ck/);
-    await expect(pool.query(`INSERT INTO products (name, price_ar) VALUES ($1, 1500)`, ['x'.repeat(51)])).rejects.toThrow(/products_name_len_ck/);
+    await expect(pool.query(`INSERT INTO products (name, price_ar) VALUES ($1, 1500)`, ['x'.repeat(51)])).rejects.toThrow(
+      /products_name_len_ck/,
+    );
   });
 });
 
@@ -111,7 +122,7 @@ describe('cohérence base <-> MONEY_CONFIG (échoue si la config change sans nou
 });
 
 describe('wallet et registre', () => {
-  it('un CLIENT reçoit un wallet à 0, un ADMIN n\'en a pas', async () => {
+  it("un CLIENT reçoit un wallet à 0, un ADMIN n'en a pas", async () => {
     const c = await mkUser('CLIENT');
     const a = await mkUser('ADMIN');
     expect(await balanceOf(c)).toBe(0);
@@ -142,7 +153,7 @@ describe('wallet et registre', () => {
     expect(await balanceOf(u)).toBe(40_000);
   });
 
-  it('atteindre exactement le plafond : accepté ; le dépasser : rejeté, rien d\'écrit', async () => {
+  it("atteindre exactement le plafond : accepté ; le dépasser : rejeté, rien d'écrit", async () => {
     const u = await mkUser();
     for (let i = 0; i < 4; i++) await deposit(u, 20_000);
     await deposit(u, 20_000); // 100 000 pile
@@ -189,8 +200,11 @@ describe('wallet et registre', () => {
     const o = await mkOrder(u, 100);
     const v = values.replace(`'__ORDER__'`, `'${o}'`).replace(/'ins-[abc]'/, `'ins-${next()}'`);
     await expect(
-      pool.query(`INSERT INTO wallet_ledger (user_id, type, amount_ar, insertion_id, order_id, created_at)
-                  SELECT $1, v.t, v.a, v.i, v.o::uuid, 1 FROM (VALUES (${v})) AS v(t, a, i, o)`, [u]),
+      pool.query(
+        `INSERT INTO wallet_ledger (user_id, type, amount_ar, insertion_id, order_id, created_at)
+                  SELECT $1, v.t, v.a, v.i, v.o::uuid, 1 FROM (VALUES (${v})) AS v(t, a, i, o)`,
+        [u],
+      ),
     ).rejects.toThrow(re);
   });
 
@@ -214,7 +228,7 @@ describe('wallet et registre', () => {
     expect(await balanceOf(u)).toBe(1_000);
   });
 
-  it('LIMITE : un UPDATE direct de wallets échappe aux triggers, mais la requête d\'audit le détecte', async () => {
+  it("LIMITE : un UPDATE direct de wallets échappe aux triggers, mais la requête d'audit le détecte", async () => {
     const u = await mkUser();
     await deposit(u, 1_000);
     await pool.query('UPDATE wallets SET balance_ar = 5000 WHERE user_id = $1', [u]); // triche
@@ -319,11 +333,14 @@ describe('orders et order_items', () => {
     await expect(mkOrder(u, total, { status: 'DISPENSED' })).rejects.toThrow(/orders_total_ck/);
   });
 
-  it('clé d\'idempotence unique PAR utilisateur', async () => {
+  it("clé d'idempotence unique PAR utilisateur", async () => {
     const [u1, u2] = [await mkUser(), await mkUser()];
     const ins = (u: string) =>
-      pool.query(`INSERT INTO orders (user_id, status, total_ar, idempotency_key, created_at, finished_at)
-                  VALUES ($1, 'DISPENSED', 1000, 'same-key-1', 1, 2)`, [u]);
+      pool.query(
+        `INSERT INTO orders (user_id, status, total_ar, idempotency_key, created_at, finished_at)
+                  VALUES ($1, 'DISPENSED', 1000, 'same-key-1', 1, 2)`,
+        [u],
+      );
     await ins(u1);
     await expect(ins(u1)).rejects.toThrow(/orders_user_idem_uq/);
     await expect(ins(u2)).resolves.toBeDefined();
@@ -343,7 +360,13 @@ describe('orders et order_items', () => {
     const p = await mkProduct();
     const o = await mkOrder(u, 3_000);
     const add = (qty: number, delivered: number, price = 1_500) =>
-      pool.query('INSERT INTO order_items (order_id, product_id, qty, unit_price_ar, delivered_qty) VALUES ($1, $2, $3, $4, $5)', [o, p, qty, price, delivered]);
+      pool.query('INSERT INTO order_items (order_id, product_id, qty, unit_price_ar, delivered_qty) VALUES ($1, $2, $3, $4, $5)', [
+        o,
+        p,
+        qty,
+        price,
+        delivered,
+      ]);
     await expect(add(2, 3)).rejects.toThrow(/order_items_delivered_ck/);
     await expect(add(0, 0)).rejects.toThrow(/order_items_qty_ck/);
     await expect(add(1, 0, 1_250)).rejects.toThrow(/order_items_price_ck/);
@@ -357,7 +380,9 @@ describe('machine_state (singleton, reflet de MachineState)', () => {
     pool.query(`UPDATE machine_state SET ${sql} WHERE id = 1`, sql.includes('$1') ? params : []);
   // chaque test part d'un IDLE valide : un test ne doit jamais dépendre de l'état laissé par un autre
   beforeEach(async () => {
-    await pool.query(`UPDATE machine_state SET kind='IDLE', user_id=NULL, admin_id=NULL, started_at=NULL, last_activity_at=NULL, phase=NULL WHERE id = 1`);
+    await pool.query(
+      `UPDATE machine_state SET kind='IDLE', user_id=NULL, admin_id=NULL, started_at=NULL, last_activity_at=NULL, phase=NULL WHERE id = 1`,
+    );
   });
 
   it('transitions valides : IDLE -> CLIENT (SELECTING, DISPENSING) -> IDLE -> MAINTENANCE -> IDLE', async () => {
@@ -405,10 +430,10 @@ describe('concurrence réelle (deux connexions distinctes)', () => {
       const c = await pool.connect();
       try {
         await c.query('BEGIN');
-        await c.query(
-          `INSERT INTO wallet_ledger (user_id, type, amount_ar, order_id, created_at) VALUES ($1, 'PURCHASE', -3000, $2, 1)`,
-          [u, orderId],
-        );
+        await c.query(`INSERT INTO wallet_ledger (user_id, type, amount_ar, order_id, created_at) VALUES ($1, 'PURCHASE', -3000, $2, 1)`, [
+          u,
+          orderId,
+        ]);
         await sleep(150); // force le chevauchement des deux transactions
         await c.query('COMMIT');
         return 'ok';
@@ -433,7 +458,9 @@ describe('concurrence réelle (deux connexions distinctes)', () => {
    */
   const raceLogin = async (lock: boolean): Promise<('ok' | 'busy')[]> => {
     const [u1, u2] = [await mkUser(), await mkUser()];
-    await pool.query(`UPDATE machine_state SET kind='IDLE', user_id=NULL, admin_id=NULL, started_at=NULL, last_activity_at=NULL, phase=NULL WHERE id = 1`);
+    await pool.query(
+      `UPDATE machine_state SET kind='IDLE', user_id=NULL, admin_id=NULL, started_at=NULL, last_activity_at=NULL, phase=NULL WHERE id = 1`,
+    );
     const login = async (userId: string): Promise<'ok' | 'busy'> => {
       const c = await pool.connect();
       try {
@@ -461,7 +488,7 @@ describe('concurrence réelle (deux connexions distinctes)', () => {
     expect([...(await raceLogin(true))].sort()).toEqual(['busy', 'ok']);
   });
 
-  it('SANS verrou (anti-modèle) : les deux croient l\'avoir prise -> le verrou est indispensable', async () => {
+  it("SANS verrou (anti-modèle) : les deux croient l'avoir prise -> le verrou est indispensable", async () => {
     expect(await raceLogin(false)).toEqual(['ok', 'ok']);
   });
 });

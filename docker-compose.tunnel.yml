@@ -1,0 +1,7 @@
+# Surcharge « derrière un tunnel » : HTTP simple, exposé UNIQUEMENT sur la machine locale (127.0.0.1:8080).
+# Le tunnel (tailscale funnel 8080, cloudflared tunnel --url http://localhost:8080) fournit le HTTPS public.
+# Dans .env.prod : SITE_ADDRESS=http://:8080  et  ALLOWED_ORIGINS=https://<nom-public-du-tunnel>
+services:
+  web:
+    ports: !override
+      - '127.0.0.1:8080:8080'

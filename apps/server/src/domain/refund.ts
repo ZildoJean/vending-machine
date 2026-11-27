@@ -21,10 +21,7 @@ export interface RefundPlan {
  * doublon, compte négatif ou supérieur au commandé) est un bug => exception, jamais de
  * remboursement négatif ni de produit gratuit.
  */
-export function planRefund(
-  lines: Quote['lines'],
-  delivered: readonly DeliveredUnits[],
-): RefundPlan {
+export function planRefund(lines: Quote['lines'], delivered: readonly DeliveredUnits[]): RefundPlan {
   if (lines.length === 0) throw new Error('Invariant violé : commande sans ligne');
 
   const byProduct = new Map<string, QuoteLine>();
@@ -60,7 +57,6 @@ export function planRefund(
     }
   }
 
-  const status: FinalOrderStatus =
-    deliveredUnits === orderedUnits ? 'DISPENSED' : deliveredUnits === 0 ? 'FAILED' : 'PARTIALLY_DISPENSED';
+  const status: FinalOrderStatus = deliveredUnits === orderedUnits ? 'DISPENSED' : deliveredUnits === 0 ? 'FAILED' : 'PARTIALLY_DISPENSED';
   return { status, refundAr, restock };
 }

@@ -2,7 +2,16 @@ import type { TimeoutConfig } from '@vending/shared';
 import type { Clock } from '../domain/clock';
 import { isExpired, settle, statesEqual, transition } from '../domain/machine-state';
 import type { MachineEvent, MachineState, TransitionResult } from '../domain/machine-state';
-import type { UnitOfWork } from './ports';
+import type { TxContext, UnitOfWork } from './ports';
+
+/** verrou -> lecture -> horloge -> transition -> écriture, DANS la transaction `tx` de l'appelant. */
+export async function applyMachineEvent(tx: TxContext, clock: Clock, cfg: TimeoutConfig, event: MachineEvent): Promise<TransitionResult> {
+  const current = await tx.machine.loadForUpdate();
+  const now = clock.now(); // APRÈS le verrou
+  const result = transition(current, event, now, cfg);
+  if (!statesEqual(current, result.state)) await tx.machine.save(result.state);
+  return result;
+}
 
 export class MachineService {
   constructor(
@@ -18,13 +27,7 @@ export class MachineService {
    * - `result.state` est écrit même en cas de refus : une session expirée est ramenée à IDLE.
    */
   apply(event: MachineEvent): Promise<TransitionResult> {
-    return this.uow.run(async (tx) => {
-      const current = await tx.machine.loadForUpdate();
-      const now = this.clock.now();
-      const result = transition(current, event, now, this.cfg);
-      if (!statesEqual(current, result.state)) await tx.machine.save(result.state);
-      return result;
-    });
+    return this.uow.run((tx) => applyMachineEvent(tx, this.clock, this.cfg, event));
   }
 
   /**

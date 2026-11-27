@@ -21,9 +21,7 @@ const INITIAL: readonly Product[] = [
 ];
 const IDS = ['cola', 'eau', 'luxe', 'fantome'] as const;
 
-type Op =
-  | { kind: 'deposit'; bill: number }
-  | { kind: 'checkout'; lines: { id: number; qty: number }[]; seeds: number[] };
+type Op = { kind: 'deposit'; bill: number } | { kind: 'checkout'; lines: { id: number; qty: number }[]; seeds: number[] };
 
 const opArb: fc.Arbitrary<Op> = fc.oneof(
   fc.record({
@@ -37,8 +35,8 @@ const opArb: fc.Arbitrary<Op> = fc.oneof(
   }),
 );
 
-describe('simulation : conservation de l\'argent et du stock', () => {
-  it('PROPRIÉTÉ : sur toute suite d\'opérations, les invariants tiennent à chaque étape', () => {
+describe("simulation : conservation de l'argent et du stock", () => {
+  it("PROPRIÉTÉ : sur toute suite d'opérations, les invariants tiennent à chaque étape", () => {
     fc.assert(
       fc.property(fc.array(opArb, { maxLength: 60 }), (ops) => {
         const stock = new Map(INITIAL.map((p) => [p.id, p.stock]));
@@ -51,8 +49,7 @@ describe('simulation : conservation de l\'argent et du stock', () => {
         let refunded = 0;
         let n = 0;
 
-        const snapshot = (): Product[] =>
-          INITIAL.map((p) => ({ ...p, stock: stock.get(p.id) ?? 0 }));
+        const snapshot = (): Product[] => INITIAL.map((p) => ({ ...p, stock: stock.get(p.id) ?? 0 }));
 
         for (const op of ops) {
           n += 1;
@@ -112,7 +109,7 @@ describe('simulation : conservation de l\'argent et du stock', () => {
     );
   });
 
-  it('garde-fou : l\'oracle détecterait une fuite (remboursement oublié)', () => {
+  it("garde-fou : l'oracle détecterait une fuite (remboursement oublié)", () => {
     // Si on ne rembourse pas les unités non livrées, "argent gardé" != "valeur livrée".
     const lines = [{ productId: 'cola', qty: 2, unitPriceAr: 1_500, lineTotalAr: 3_000 }];
     const plan = planRefund(lines, [{ productId: 'cola', count: 1 }]);
@@ -121,6 +118,12 @@ describe('simulation : conservation de l\'argent et du stock', () => {
     const valueDelivered = 1 * 1_500;
     expect(keptWithRefund).toBe(valueDelivered);
     expect(keptWithoutRefund).not.toBe(valueDelivered);
-    expect(quoteCart(lines.map((l) => ({ productId: l.productId, qty: l.qty })), INITIAL, cfg).ok).toBe(true);
+    expect(
+      quoteCart(
+        lines.map((l) => ({ productId: l.productId, qty: l.qty })),
+        INITIAL,
+        cfg,
+      ).ok,
+    ).toBe(true);
   });
 });

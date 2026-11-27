@@ -52,10 +52,9 @@ export interface CheckoutDeps {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 type PlaceResult =
-  | { readonly kind: 'PLACED'; readonly order: OrderRecord }
-  | { readonly kind: 'REPLAY'; readonly outcome: CheckoutOutcome };
+  { readonly kind: 'PLACED'; readonly order: OrderRecord } | { readonly kind: 'REPLAY'; readonly outcome: CheckoutOutcome };
 
-function toOutcome(order: OrderRecord, balanceAr: number, replayed: boolean): CheckoutOutcome {
+export function toOutcome(order: OrderRecord, balanceAr: number, replayed: boolean): CheckoutOutcome {
   return {
     orderId: order.id,
     status: order.status,
@@ -87,11 +86,7 @@ export class CheckoutService {
    *    chaque unité confirmée est enregistrée immédiatement.
    * 3) CLÔTURE (une transaction) : remboursement des unités non délivrées + retour à IDLE.
    */
-  async checkout(
-    userId: string,
-    cart: readonly RawCartLine[],
-    idempotencyKey: unknown,
-  ): Promise<Result<CheckoutOutcome, CheckoutError>> {
+  async checkout(userId: string, cart: readonly RawCartLine[], idempotencyKey: unknown): Promise<Result<CheckoutOutcome, CheckoutError>> {
     if (typeof idempotencyKey !== 'string' || idempotencyKey.length < 8 || idempotencyKey.length > 100) {
       return err({ kind: 'REQUEST', error: 'INVALID_IDEMPOTENCY_KEY' });
     }

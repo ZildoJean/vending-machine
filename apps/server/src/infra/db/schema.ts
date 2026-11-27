@@ -1,18 +1,5 @@
 import { sql } from 'drizzle-orm';
-import {
-  bigint,
-  boolean,
-  check,
-  index,
-  integer,
-  jsonb,
-  pgTable,
-  primaryKey,
-  smallint,
-  text,
-  uniqueIndex,
-  uuid,
-} from 'drizzle-orm/pg-core';
+import { bigint, boolean, check, index, integer, jsonb, pgTable, primaryKey, smallint, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { MONEY_CONFIG } from '@vending/shared';
 
 /**
@@ -55,12 +42,7 @@ export const wallets = pgTable(
       .references(() => users.id, { onDelete: 'restrict' }),
     balanceAr: integer('balance_ar').notNull().default(0),
   },
-  (t) => [
-    check(
-      'wallets_balance_ck',
-      sql`${t.balanceAr} >= 0 AND ${t.balanceAr} <= ${CAP} AND ${t.balanceAr} % ${STEP} = 0`,
-    ),
-  ],
+  (t) => [check('wallets_balance_ck', sql`${t.balanceAr} >= 0 AND ${t.balanceAr} <= ${CAP} AND ${t.balanceAr} % ${STEP} = 0`)],
 );
 
 /** `stock` est maintenu PAR TRIGGER à partir de stock_movements. */
@@ -76,10 +58,7 @@ export const products = pgTable(
   (t) => [
     uniqueIndex('products_name_lower_uq').on(sql`lower(${t.name})`),
     check('products_name_len_ck', sql`char_length(${t.name}) BETWEEN 1 AND 50`),
-    check(
-      'products_price_ck',
-      sql`${t.priceAr} > 0 AND ${t.priceAr} <= ${CAP} AND ${t.priceAr} % ${STEP} = 0`,
-    ),
+    check('products_price_ck', sql`${t.priceAr} > 0 AND ${t.priceAr} <= ${CAP} AND ${t.priceAr} % ${STEP} = 0`),
     check('products_stock_ck', sql`${t.stock} >= 0`),
   ],
 );
@@ -105,14 +84,8 @@ export const orders = pgTable(
       .on(t.status)
       .where(sql`${t.status} = 'PENDING_DISPENSE'`),
     index('orders_user_created_idx').on(t.userId, t.createdAt),
-    check(
-      'orders_status_ck',
-      sql`${t.status} IN ('PENDING_DISPENSE', 'DISPENSED', 'PARTIALLY_DISPENSED', 'FAILED')`,
-    ),
-    check(
-      'orders_total_ck',
-      sql`${t.totalAr} > 0 AND ${t.totalAr} <= ${CAP} AND ${t.totalAr} % ${STEP} = 0`,
-    ),
+    check('orders_status_ck', sql`${t.status} IN ('PENDING_DISPENSE', 'DISPENSED', 'PARTIALLY_DISPENSED', 'FAILED')`),
+    check('orders_total_ck', sql`${t.totalAr} > 0 AND ${t.totalAr} <= ${CAP} AND ${t.totalAr} % ${STEP} = 0`),
     check('orders_refund_step_ck', sql`${t.refundedAr} >= 0 AND ${t.refundedAr} % ${STEP} = 0`),
     check(
       'orders_refund_coherence_ck',
@@ -143,10 +116,7 @@ export const orderItems = pgTable(
   (t) => [
     primaryKey({ columns: [t.orderId, t.productId] }),
     check('order_items_qty_ck', sql`${t.qty} > 0`),
-    check(
-      'order_items_price_ck',
-      sql`${t.unitPriceAr} > 0 AND ${t.unitPriceAr} <= ${CAP} AND ${t.unitPriceAr} % ${STEP} = 0`,
-    ),
+    check('order_items_price_ck', sql`${t.unitPriceAr} > 0 AND ${t.unitPriceAr} <= ${CAP} AND ${t.unitPriceAr} % ${STEP} = 0`),
     check('order_items_delivered_ck', sql`${t.deliveredQty} >= 0 AND ${t.deliveredQty} <= ${t.qty}`),
   ],
 );
@@ -207,10 +177,7 @@ export const stockMovements = pgTable(
     uniqueIndex('stock_movements_order_product_reason_uq')
       .on(t.orderId, t.productId, t.reason)
       .where(sql`${t.orderId} IS NOT NULL`),
-    check(
-      'stock_movements_reason_ck',
-      sql`${t.reason} IN ('RESTOCK', 'ADMIN_ADJUST', 'SALE', 'SALE_REVERSAL')`,
-    ),
+    check('stock_movements_reason_ck', sql`${t.reason} IN ('RESTOCK', 'ADMIN_ADJUST', 'SALE', 'SALE_REVERSAL')`),
     check(
       'stock_movements_shape_ck',
       sql`(${t.reason} = 'SALE' AND ${t.delta} < 0 AND ${t.orderId} IS NOT NULL AND ${t.actorId} IS NULL)
@@ -262,4 +229,29 @@ export const auditLog = pgTable(
     createdAt: ms('created_at').notNull(),
   },
   (t) => [index('audit_log_created_idx').on(t.createdAt)],
+);
+
+/**
+ * Une seule session par utilisateur. On ne stocke JAMAIS le jeton, seulement son SHA-256.
+ * Pour un CLIENT, la session n'est valide que si machine_state désigne cet utilisateur ET la même
+ * `machine_started_at` : la machine reste la seule source de vérité.
+ */
+export const sessions = pgTable(
+  'sessions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    tokenHash: text('token_hash').notNull(),
+    machineStartedAt: ms('machine_started_at'),
+    createdAt: ms('created_at').notNull(),
+    lastSeenAt: ms('last_seen_at').notNull(),
+    expiresAt: ms('expires_at'),
+  },
+  (t) => [
+    uniqueIndex('sessions_token_hash_uq').on(t.tokenHash),
+    uniqueIndex('sessions_user_uq').on(t.userId),
+    check('sessions_hash_len_ck', sql`char_length(${t.tokenHash}) = 64`),
+  ],
 );

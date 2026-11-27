@@ -1,0 +1,20 @@
+# Règles par défaut de gitleaks + une liste d'autorisation ÉTROITE : uniquement ces valeurs littérales, connues et
+# non secrètes (exemples et jeux d'essai). Tout autre secret ajouté reste détecté.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Valeurs d'exemple et de test (aucune n'est un secret de production)"
+# ce fichier cite ces valeurs : il ne doit pas se détecter lui-même
+paths = ['''\.gitleaks\.toml$''']
+regexes = [
+  '''CHANGE-ME-generer-avec-openssl-rand-base64-48''',
+  '''ci-pepper-ci-pepper-ci-pepper-ci-pepper-1234''',
+  '''ci-app-password-123''',
+  '''ci-Un-bon-mot-de-passe-42''',
+  '''Un-bon-mot-de-passe-42''',
+  '''un-mot-de-passe-d-au-moins-12-caracteres''',
+  '''test-pepper-test-pepper-test-pepper-1234''',
+  '''app-pass-1''',
+  '''nouveau-mot-de-passe-2''',
+]

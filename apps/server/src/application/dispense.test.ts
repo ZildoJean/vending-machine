@@ -15,7 +15,7 @@ describe('dispenseWithTimeout', () => {
     expect(await dispenseWithTimeout(d, req, 100, new CapturingLogger())).toEqual({ delivered: false, reason: 'JAM' });
   });
 
-  it('le matériel lève (de façon synchrone) : unité non délivrée, jamais d\'exception', async () => {
+  it("le matériel lève (de façon synchrone) : unité non délivrée, jamais d'exception", async () => {
     const d = new ScriptedDispenser(() => {
       throw new Error('capteur HS');
     });
@@ -25,7 +25,7 @@ describe('dispenseWithTimeout', () => {
 
   it('le matériel rejette (promesse) : unité non délivrée', async () => {
     const d = new ScriptedDispenser(() => Promise.reject(new Error('bus')));
-    expect((await dispenseWithTimeout(d, req, 100, new CapturingLogger()))).toEqual({ delivered: false, reason: 'ERROR: bus' });
+    expect(await dispenseWithTimeout(d, req, 100, new CapturingLogger())).toEqual({ delivered: false, reason: 'ERROR: bus' });
   });
 
   it('blocage : TIMEOUT après le délai, sans attendre le matériel', async () => {

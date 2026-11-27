@@ -8,17 +8,36 @@
     "test": "vitest run",
     "test:unit": "vitest run --exclude \"**/*.db.test.ts\"",
     "test:db": "vitest run db.test",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts",
+    "db:migrate": "tsx src/migrate.ts",
+    "seed:admin": "tsx src/seed-admin.ts",
+    "build": "tsup",
+    "start:prod": "node dist/main.js",
+    "db:migrate:prod": "node dist/migrate.js",
+    "db:roles": "tsx src/setup-roles.ts",
+    "db:roles:prod": "node dist/setup-roles.js",
+    "test:approle": "cross-env TEST_APP_ROLE=1 vitest run http.db"
   },
   "dependencies": {
+    "@fastify/cookie": "^11.1.5",
+    "@fastify/helmet": "^13.2.0",
+    "@fastify/rate-limit": "^11.2.2",
+    "@node-rs/argon2": "^2.2.2",
     "@vending/shared": "workspace:*",
     "drizzle-orm": "^0.45.4",
-    "pg": "^8.23.1"
+    "fastify": "^5.12.8",
+    "pg": "^8.23.1",
+    "pino": "^10.4.0",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
     "@types/pg": "^8.23.1",
+    "cross-env": "^10.1.0",
     "drizzle-kit": "^0.31.11",
+    "tsup": "^9.0.0",
     "tsx": "^4.23.15"
   }
 }

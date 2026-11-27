@@ -3,12 +3,7 @@ import fc from 'fast-check';
 import { TIMEOUT_CONFIG } from '@vending/shared';
 import type { MachineError } from '@vending/shared';
 import { FakeClock } from '../testing/fake-clock';
-import {
-  IDLE,
-  assertValidTimeoutConfig,
-  isExpired,
-  transition,
-} from './machine-state';
+import { IDLE, assertValidTimeoutConfig, isExpired, transition } from './machine-state';
 import type { MachineEvent, MachineState } from './machine-state';
 
 const cfg = TIMEOUT_CONFIG;
@@ -17,13 +12,24 @@ const MAINT_MS = cfg.maintenanceInactivityMs; // 900 000
 const T0 = 1_000_000;
 
 const selecting = (userId = 'u1', last = T0): MachineState => ({
-  kind: 'CLIENT_ACTIVE', userId, startedAt: last, lastActivityAt: last, phase: 'SELECTING',
+  kind: 'CLIENT_ACTIVE',
+  userId,
+  startedAt: last,
+  lastActivityAt: last,
+  phase: 'SELECTING',
 });
 const dispensing = (userId = 'u1', last = T0): MachineState => ({
-  kind: 'CLIENT_ACTIVE', userId, startedAt: last, lastActivityAt: last, phase: 'DISPENSING',
+  kind: 'CLIENT_ACTIVE',
+  userId,
+  startedAt: last,
+  lastActivityAt: last,
+  phase: 'DISPENSING',
 });
 const maintenance = (adminId = 'a1', last = T0): MachineState => ({
-  kind: 'MAINTENANCE', adminId, startedAt: last, lastActivityAt: last,
+  kind: 'MAINTENANCE',
+  adminId,
+  startedAt: last,
+  lastActivityAt: last,
 });
 
 const login = (userId: string): MachineEvent => ({ type: 'LOGIN_CLIENT', userId });
@@ -57,7 +63,7 @@ describe('isExpired', () => {
   ])('maintenance : inactivité %i ms -> expiré = %s (14 min 59,999 s / 15 min 00 s)', (idle, expected) => {
     expect(isExpired(maintenance('a1', T0), T0 + idle, cfg)).toBe(expected);
   });
-  it('horloge qui recule : pas d\'expiration', () => {
+  it("horloge qui recule : pas d'expiration", () => {
     expect(isExpired(selecting('u1', T0), T0 - 5_000, cfg)).toBe(false);
   });
   it.each([-1, 1.5, NaN, Infinity])('horloge invalide %p -> lève', (now) => {
@@ -98,7 +104,12 @@ const matrix: Case[] = [
   ['SELECTING + logout autre', selecting(), logout('u2'), 'NOT_OWNER'],
   ['SELECTING + activité propriétaire', selecting(), activity('u1'), { ...selecting(), lastActivityAt: NOW } as MachineState],
   ['SELECTING + activité autre', selecting(), activity('u2'), 'NOT_OWNER'],
-  ['SELECTING + start dispense propriétaire', selecting(), startD('u1'), { ...selecting(), phase: 'DISPENSING', lastActivityAt: NOW } as MachineState],
+  [
+    'SELECTING + start dispense propriétaire',
+    selecting(),
+    startD('u1'),
+    { ...selecting(), phase: 'DISPENSING', lastActivityAt: NOW } as MachineState,
+  ],
   ['SELECTING + start dispense autre', selecting(), startD('u2'), 'NOT_OWNER'],
   ['SELECTING + end dispense', selecting(), endD, 'TRANSITION_FORBIDDEN'],
   ['SELECTING + force close', selecting(), force, IDLE],
@@ -158,7 +169,7 @@ describe('expiration traitée à la demande (proposition retenue)', () => {
     const r = transition(selecting('u1', T0), enterM('a1'), expiredAt - 1, cfg);
     expect(r).toMatchObject({ ok: false, error: 'MACHINE_BUSY' });
   });
-  it('client expiré + login d\'un autre client -> nouvelle session', () => {
+  it("client expiré + login d'un autre client -> nouvelle session", () => {
     const r = transition(selecting('u1', T0), login('u2'), expiredAt, cfg);
     expect(r).toEqual({ ok: true, state: selecting('u2', expiredAt) });
   });
@@ -168,12 +179,16 @@ describe('expiration traitée à la demande (proposition retenue)', () => {
   });
   it('propriétaire expiré + activité -> SESSION_EXPIRED et état ramené à IDLE', () => {
     expect(transition(selecting('u1', T0), activity('u1'), expiredAt, cfg)).toEqual({
-      ok: false, error: 'SESSION_EXPIRED', state: IDLE,
+      ok: false,
+      error: 'SESSION_EXPIRED',
+      state: IDLE,
     });
   });
   it('propriétaire expiré + start dispense -> SESSION_EXPIRED (pas de débit possible)', () => {
     expect(transition(selecting('u1', T0), startD('u1'), expiredAt, cfg)).toEqual({
-      ok: false, error: 'SESSION_EXPIRED', state: IDLE,
+      ok: false,
+      error: 'SESSION_EXPIRED',
+      state: IDLE,
     });
   });
   it('propriétaire expiré + logout -> succès IDLE', () => {
@@ -181,7 +196,9 @@ describe('expiration traitée à la demande (proposition retenue)', () => {
   });
   it('un autre client expiré qui tente une activité -> NO_SESSION, état IDLE persisté', () => {
     expect(transition(selecting('u1', T0), activity('u2'), expiredAt, cfg)).toEqual({
-      ok: false, error: 'NO_SESSION', state: IDLE,
+      ok: false,
+      error: 'NO_SESSION',
+      state: IDLE,
     });
   });
   it('un événement refusé ne ressuscite pas une session expirée', () => {
@@ -196,21 +213,25 @@ describe('expiration traitée à la demande (proposition retenue)', () => {
     const r = transition(maintenance('a1', T0), login('u1'), T0 + MAINT_MS, cfg);
     expect(r).toEqual({ ok: true, state: selecting('u1', T0 + MAINT_MS) });
   });
-  it('login 1 ms avant l\'expiration de la maintenance -> OUT_OF_SERVICE', () => {
+  it("login 1 ms avant l'expiration de la maintenance -> OUT_OF_SERVICE", () => {
     expect(transition(maintenance('a1', T0), login('u1'), T0 + MAINT_MS - 1, cfg)).toMatchObject({
-      ok: false, error: 'OUT_OF_SERVICE',
+      ok: false,
+      error: 'OUT_OF_SERVICE',
     });
   });
   it('admin expiré + sortie -> succès ; + activité -> SESSION_EXPIRED', () => {
     const at = T0 + MAINT_MS;
     expect(transition(maintenance('a1', T0), exitM('a1'), at, cfg)).toEqual({ ok: true, state: IDLE });
     expect(transition(maintenance('a1', T0), adminAct('a1'), at, cfg)).toEqual({
-      ok: false, error: 'SESSION_EXPIRED', state: IDLE,
+      ok: false,
+      error: 'SESSION_EXPIRED',
+      state: IDLE,
     });
   });
-  it('DISPENSING n\'expire jamais : un autre client reste refusé après 1 heure', () => {
+  it("DISPENSING n'expire jamais : un autre client reste refusé après 1 heure", () => {
     expect(transition(dispensing('u1', T0), login('u2'), T0 + 3_600_000, cfg)).toMatchObject({
-      ok: false, error: 'MACHINE_BUSY',
+      ok: false,
+      error: 'MACHINE_BUSY',
     });
   });
 });
@@ -247,13 +268,13 @@ describe('scénario avec horloge injectée', () => {
     expect(s).toEqual(IDLE);
     expect(transition(s, activity('u1'), clock.now(), cfg)).toMatchObject({ ok: false, error: 'NO_SESSION' });
   });
-  it('horloge qui recule : l\'activité ne fait jamais reculer lastActivityAt', () => {
+  it("horloge qui recule : l'activité ne fait jamais reculer lastActivityAt", () => {
     const r = transition(selecting('u1', T0), activity('u1'), T0 - 5_000, cfg);
     expect(r.ok && r.state.kind === 'CLIENT_ACTIVE' && r.state.lastActivityAt).toBe(T0);
   });
 });
 
-describe('PROPRIÉTÉS sur des suites aléatoires d\'événements', () => {
+describe("PROPRIÉTÉS sur des suites aléatoires d'événements", () => {
   const eventArb: fc.Arbitrary<MachineEvent> = fc.oneof(
     fc.constantFrom('u1', 'u2').map(login),
     fc.constantFrom('u1', 'u2').map(logout),

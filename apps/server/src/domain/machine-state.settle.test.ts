@@ -5,7 +5,11 @@ import type { MachineState } from './machine-state';
 
 const cfg = TIMEOUT_CONFIG;
 const sel = (last: number, userId = 'u1', phase: 'SELECTING' | 'DISPENSING' = 'SELECTING'): MachineState => ({
-  kind: 'CLIENT_ACTIVE', userId, startedAt: 0, lastActivityAt: last, phase,
+  kind: 'CLIENT_ACTIVE',
+  userId,
+  startedAt: 0,
+  lastActivityAt: last,
+  phase,
 });
 const maint = (last: number, adminId = 'a1'): MachineState => ({ kind: 'MAINTENANCE', adminId, startedAt: 0, lastActivityAt: last });
 

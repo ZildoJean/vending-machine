@@ -3,6 +3,7 @@ import type { MachineStateStore, TxContext, UnitOfWork } from '../../application
 import type { MachineState } from '../../domain/machine-state';
 import type { Db, Tx } from './client';
 import { LockTimeoutError, PG_LOCK_NOT_AVAILABLE, pgErrorCode } from './errors';
+import { PgAuditStore, PgProductAdminStore, PgSessionStore, PgUserStore } from './pg-admin-stores';
 import { PgCatalogStore, PgOrderStore, PgWalletStore } from './pg-checkout-stores';
 import { rowToState, stateToValues } from './machine-state-mapper';
 import { machineState } from './schema';
@@ -58,6 +59,10 @@ export class PgUnitOfWork implements UnitOfWork {
           orders: new PgOrderStore(tx),
           catalog: new PgCatalogStore(tx),
           wallet: new PgWalletStore(tx),
+          users: new PgUserStore(tx),
+          sessions: new PgSessionStore(tx),
+          products: new PgProductAdminStore(tx),
+          audit: new PgAuditStore(tx),
         });
       });
     } catch (e) {

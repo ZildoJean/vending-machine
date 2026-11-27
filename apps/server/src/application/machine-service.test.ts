@@ -22,14 +22,14 @@ describe('MachineService.apply', () => {
     expect(uow.log).toEqual(['loadForUpdate', 'now', 'save:CLIENT_ACTIVE']);
   });
 
-  it('écrit l\'état accepté', async () => {
+  it("écrit l'état accepté", async () => {
     const { uow, svc } = setup();
     const r = await svc.apply({ type: 'LOGIN_CLIENT', userId: 'u1' });
     expect(r.ok).toBe(true);
     expect(uow.state).toEqual({ kind: 'CLIENT_ACTIVE', userId: 'u1', startedAt: T0, lastActivityAt: T0, phase: 'SELECTING' });
   });
 
-  it('un refus sans changement d\'état n\'écrit rien', async () => {
+  it("un refus sans changement d'état n'écrit rien", async () => {
     const { uow, svc } = setup();
     await svc.apply({ type: 'LOGIN_CLIENT', userId: 'u1' });
     uow.log.length = 0;
@@ -48,7 +48,7 @@ describe('MachineService.apply', () => {
     expect(uow.log.at(-1)).toBe('save:IDLE');
   });
 
-  it('une exception dans la transaction annule l\'écriture', async () => {
+  it("une exception dans la transaction annule l'écriture", async () => {
     const { uow, svc } = setup();
     await expect(
       uow.run(async (tx) => {

@@ -2,24 +2,15 @@ import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
 import { MONEY_CONFIG } from '@vending/shared';
 import type { MoneyConfig } from '@vending/shared';
-import {
-  assertValidBalance,
-  assertValidMoneyConfig,
-  validateAmount,
-  validateDeposit,
-  validatePrice,
-} from './money';
+import { assertValidBalance, assertValidMoneyConfig, validateAmount, validateDeposit, validatePrice } from './money';
 
 const cfg = MONEY_CONFIG;
 const free: MoneyConfig = { ...cfg, freeAmountMode: true };
 
 describe('validateAmount', () => {
-  it.each(['1000', NaN, Infinity, -Infinity, 1e21, 1000.5, null, undefined, {}, [], true])(
-    'rejette le non-entier %p',
-    (v) => {
-      expect(validateAmount(v, cfg)).toEqual({ ok: false, error: 'NOT_SAFE_INTEGER' });
-    },
-  );
+  it.each(['1000', NaN, Infinity, -Infinity, 1e21, 1000.5, null, undefined, {}, [], true])('rejette le non-entier %p', (v) => {
+    expect(validateAmount(v, cfg)).toEqual({ ok: false, error: 'NOT_SAFE_INTEGER' });
+  });
   it.each([0, -100, -1000])('rejette %i (non positif)', (v) => {
     expect(validateAmount(v, cfg)).toEqual({ ok: false, error: 'NOT_POSITIVE' });
   });
@@ -150,7 +141,7 @@ describe('assertValidMoneyConfig', () => {
   it('accepte la configuration par défaut', () => {
     expect(() => assertValidMoneyConfig(cfg)).not.toThrow();
   });
-  it('détecte une coupure qui n\'est pas multiple du pas (ex. 150)', () => {
+  it("détecte une coupure qui n'est pas multiple du pas (ex. 150)", () => {
     expect(() => assertValidMoneyConfig({ ...cfg, acceptedBills: [...cfg.acceptedBills, 150] })).toThrow(/150/);
   });
   it('détecte un doublon', () => {

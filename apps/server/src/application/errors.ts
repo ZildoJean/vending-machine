@@ -5,3 +5,11 @@ export class OrderNotDispensableError extends Error {
     this.name = 'OrderNotDispensableError';
   }
 }
+
+/** Conflit d'unicité détecté par la base (login déjà pris, nom de produit déjà pris...). */
+export class ConflictError extends Error {
+  constructor(readonly code: 'LOGIN_TAKEN' | 'PRODUCT_NAME_TAKEN') {
+    super(`Conflit : ${code}`);
+    this.name = 'ConflictError';
+  }
+}

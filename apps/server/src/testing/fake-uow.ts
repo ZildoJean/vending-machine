@@ -2,7 +2,14 @@ import type { MachineStateStore, TxContext, UnitOfWork } from '../application/po
 
 /** Dépôt dont toute utilisation échoue : un test de la machine ne doit pas toucher aux commandes. */
 function unused<T extends object>(name: string): T {
-  return new Proxy({}, { get: () => () => { throw new Error(`${name} non disponible dans FakeUnitOfWork`); } }) as T;
+  return new Proxy(
+    {},
+    {
+      get: () => () => {
+        throw new Error(`${name} non disponible dans FakeUnitOfWork`);
+      },
+    },
+  ) as T;
 }
 import { IDLE } from '../domain/machine-state';
 import type { MachineState } from '../domain/machine-state';
@@ -34,6 +41,10 @@ export class FakeUnitOfWork implements UnitOfWork {
         orders: unused('orders'),
         catalog: unused('catalog'),
         wallet: unused('wallet'),
+        users: unused('users'),
+        sessions: unused('sessions'),
+        products: unused('products'),
+        audit: unused('audit'),
       });
     } catch (e) {
       this.state = snapshot; // rollback

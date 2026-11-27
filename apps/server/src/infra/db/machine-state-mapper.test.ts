@@ -18,7 +18,10 @@ describe('mapper', () => {
     expect(stateToValues(IDLE)).toEqual({ kind: 'IDLE', userId: null, adminId: null, startedAt: null, lastActivityAt: null, phase: null });
   });
   it.each([
-    ['CLIENT_ACTIVE sans user', { kind: 'CLIENT_ACTIVE', userId: null, adminId: null, startedAt: 1, lastActivityAt: 1, phase: 'SELECTING' }],
+    [
+      'CLIENT_ACTIVE sans user',
+      { kind: 'CLIENT_ACTIVE', userId: null, adminId: null, startedAt: 1, lastActivityAt: 1, phase: 'SELECTING' },
+    ],
     ['CLIENT_ACTIVE sans phase', { kind: 'CLIENT_ACTIVE', userId: 'u', adminId: null, startedAt: 1, lastActivityAt: 1, phase: null }],
     ['CLIENT_ACTIVE phase inconnue', { kind: 'CLIENT_ACTIVE', userId: 'u', adminId: null, startedAt: 1, lastActivityAt: 1, phase: 'X' }],
     ['MAINTENANCE sans admin', { kind: 'MAINTENANCE', userId: null, adminId: null, startedAt: 1, lastActivityAt: 1, phase: null }],

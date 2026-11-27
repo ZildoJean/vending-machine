@@ -31,7 +31,7 @@ beforeAll(async () => {
   admins = await Promise.all(Array.from({ length: 2 }, () => mkUser(pool, 'ADMIN')));
 });
 afterAll(async () => {
-  await db.drop();
+  await db?.drop(); // db peut être absent si la création a échoué : ne pas masquer la vraie erreur
 });
 beforeEach(async () => {
   await resetMachine(pool);
@@ -71,7 +71,7 @@ describe('persistance', () => {
     expect(await readMachineRow(pool)).toMatchObject({ kind: 'IDLE', user_id: null });
   });
 
-  it('client fantôme expiré : l\'admin entre en maintenance sans fermeture forcée', async () => {
+  it("client fantôme expiré : l'admin entre en maintenance sans fermeture forcée", async () => {
     await svc.apply(login(c(0)));
     clock.advance(cfg.clientInactivityMs);
     expect((await svc.apply({ type: 'ENTER_MAINTENANCE', adminId: a(0) })).ok).toBe(true);
@@ -113,10 +113,7 @@ describe('concurrence réelle', () => {
   it('client contre administrateur, 15 manches : un seul gagnant à chaque fois', async () => {
     for (let round = 0; round < 15; round++) {
       await resetMachine(pool);
-      const [r1, r2] = await Promise.all([
-        svc.apply(login(c(0))),
-        svc.apply({ type: 'ENTER_MAINTENANCE', adminId: a(0) }),
-      ]);
+      const [r1, r2] = await Promise.all([svc.apply(login(c(0))), svc.apply({ type: 'ENTER_MAINTENANCE', adminId: a(0) })]);
       expect([r1.ok, r2.ok].filter(Boolean)).toHaveLength(1);
       const kind = await rowKind();
       expect(kind).toBe(r1.ok ? 'CLIENT_ACTIVE' : 'MAINTENANCE');
@@ -136,11 +133,7 @@ describe('concurrence réelle', () => {
 
   it('un client en cours ne peut pas être expulsé par une lecture de status() concurrente', async () => {
     await svc.apply(login(c(0)));
-    const out = await Promise.all([
-      svc.status(),
-      svc.apply({ type: 'CLIENT_ACTIVITY', userId: c(0) }),
-      svc.status(),
-    ]);
+    const out = await Promise.all([svc.status(), svc.apply({ type: 'CLIENT_ACTIVITY', userId: c(0) }), svc.status()]);
     expect(out[1]).toMatchObject({ ok: true });
     expect(await rowKind()).toBe('CLIENT_ACTIVE');
   });
@@ -157,7 +150,7 @@ describe('verrou : délai maximal et lecture non bloquante', () => {
     };
   };
 
-  it('verrou tenu trop longtemps : LockTimeoutError au lieu d\'un blocage infini, puis reprise normale', async () => {
+  it("verrou tenu trop longtemps : LockTimeoutError au lieu d'un blocage infini, puis reprise normale", async () => {
     const short = new MachineService(new PgUnitOfWork(createDb(pool), { lockTimeoutMs: 200 }), clock, cfg);
     const release = await hold();
     const guard = setTimeout(() => void release(), 4_000); // filet : sans délai de verrou, on débloque pour échouer proprement
@@ -190,21 +183,25 @@ describe('verrou : délai maximal et lecture non bloquante', () => {
 });
 
 describe('PROPRIÉTÉS contre le vrai PostgreSQL', () => {
-  it('tout MachineState valide du domaine est accepté par les CHECK et relu à l\'identique', async () => {
+  it("tout MachineState valide du domaine est accepté par les CHECK et relu à l'identique", async () => {
     const stateArb: fc.Arbitrary<MachineState> = fc.oneof(
       fc.constant(IDLE),
-      fc.record({
-        kind: fc.constant('CLIENT_ACTIVE' as const),
-        userId: fc.constantFrom(...clients),
-        startedAt: fc.integer({ min: 0, max: 10 ** 12 }),
-        extra: fc.integer({ min: 0, max: 10 ** 9 }),
-        phase: fc.constantFrom('SELECTING' as const, 'DISPENSING' as const),
-      }).map((r) => ({ kind: r.kind, userId: r.userId, startedAt: r.startedAt, lastActivityAt: r.startedAt + r.extra, phase: r.phase })),
-      fc.record({
-        adminId: fc.constantFrom(...admins),
-        startedAt: fc.integer({ min: 0, max: 10 ** 12 }),
-        extra: fc.integer({ min: 0, max: 10 ** 9 }),
-      }).map((r) => ({ kind: 'MAINTENANCE' as const, adminId: r.adminId, startedAt: r.startedAt, lastActivityAt: r.startedAt + r.extra })),
+      fc
+        .record({
+          kind: fc.constant('CLIENT_ACTIVE' as const),
+          userId: fc.constantFrom(...clients),
+          startedAt: fc.integer({ min: 0, max: 10 ** 12 }),
+          extra: fc.integer({ min: 0, max: 10 ** 9 }),
+          phase: fc.constantFrom('SELECTING' as const, 'DISPENSING' as const),
+        })
+        .map((r) => ({ kind: r.kind, userId: r.userId, startedAt: r.startedAt, lastActivityAt: r.startedAt + r.extra, phase: r.phase })),
+      fc
+        .record({
+          adminId: fc.constantFrom(...admins),
+          startedAt: fc.integer({ min: 0, max: 10 ** 12 }),
+          extra: fc.integer({ min: 0, max: 10 ** 9 }),
+        })
+        .map((r) => ({ kind: 'MAINTENANCE' as const, adminId: r.adminId, startedAt: r.startedAt, lastActivityAt: r.startedAt + r.extra })),
     );
     await fc.assert(
       fc.asyncProperty(stateArb, async (s) => {
@@ -219,7 +216,7 @@ describe('PROPRIÉTÉS contre le vrai PostgreSQL', () => {
     );
   });
 
-  it('suites aléatoires d\'événements : base + service == domaine pur (même résultats, même état)', async () => {
+  it("suites aléatoires d'événements : base + service == domaine pur (même résultats, même état)", async () => {
     const eventArb: fc.Arbitrary<MachineEvent> = fc.oneof(
       fc.constantFrom(0, 1).map((i): MachineEvent => ({ type: 'LOGIN_CLIENT', userId: c(i) })),
       fc.constantFrom(0, 1).map((i): MachineEvent => ({ type: 'LOGOUT_CLIENT', userId: c(i) })),
@@ -231,7 +228,12 @@ describe('PROPRIÉTÉS contre le vrai PostgreSQL', () => {
       fc.constantFrom(0, 1).map((i): MachineEvent => ({ type: 'EXIT_MAINTENANCE', adminId: a(i) })),
       fc.constantFrom(0, 1).map((i): MachineEvent => ({ type: 'ADMIN_ACTIVITY', adminId: a(i) })),
     );
-    const dtArb = fc.oneof(fc.constant(0), fc.integer({ min: 1, max: 5_000 }), fc.integer({ min: 100_000, max: 130_000 }), fc.integer({ min: 890_000, max: 910_000 }));
+    const dtArb = fc.oneof(
+      fc.constant(0),
+      fc.integer({ min: 1, max: 5_000 }),
+      fc.integer({ min: 100_000, max: 130_000 }),
+      fc.integer({ min: 890_000, max: 910_000 }),
+    );
     await fc.assert(
       fc.asyncProperty(fc.array(fc.tuple(dtArb, eventArb), { maxLength: 25 }), async (steps) => {
         await resetMachine(pool);

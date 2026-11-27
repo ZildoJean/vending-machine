@@ -36,11 +36,7 @@ export function balanceOf(entries: readonly LedgerEntry[], cfg: MoneyConfig): nu
   let balance = 0;
   for (const [i, e] of entries.entries()) {
     const a = e.amountAr;
-    const bad =
-      !Number.isSafeInteger(a) ||
-      a === 0 ||
-      a % cfg.step !== 0 ||
-      (e.type === 'PURCHASE' ? a > 0 : a < 0);
+    const bad = !Number.isSafeInteger(a) || a === 0 || a % cfg.step !== 0 || (e.type === 'PURCHASE' ? a > 0 : a < 0);
     if (bad) throw new Error(`Invariant violé : entrée de registre invalide (#${i}, ${e.type})`);
     balance += a;
     if (balance < 0 || balance > cfg.walletCap) {

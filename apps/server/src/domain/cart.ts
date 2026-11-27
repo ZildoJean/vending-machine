@@ -50,11 +50,7 @@ function assertSellable(p: Product, cfg: MoneyConfig): void {
  * La première erreur rencontrée (dans l'ordre des lignes) est renvoyée.
  * Le plafond n'est évalué qu'une fois toutes les lignes valides.
  */
-export function quoteCart(
-  cart: readonly RawCartLine[],
-  products: readonly Product[],
-  cfg: MoneyConfig,
-): Result<Quote, QuoteFailure> {
+export function quoteCart(cart: readonly RawCartLine[], products: readonly Product[], cfg: MoneyConfig): Result<Quote, QuoteFailure> {
   if (cart.length === 0) return err({ code: 'EMPTY_CART' });
 
   const byId = indexProducts(products);

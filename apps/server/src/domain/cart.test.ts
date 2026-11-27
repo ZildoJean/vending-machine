@@ -5,7 +5,11 @@ import type { Product, RawCartLine } from './cart';
 
 const cfg = MONEY_CONFIG;
 const p = (id: string, priceAr: number, stock: number, active = true): Product => ({
-  id, name: id, priceAr, stock, active,
+  id,
+  name: id,
+  priceAr,
+  stock,
+  active,
 });
 const COLA = p('cola', 1_500, 5);
 const EAU = p('eau', 500, 3);
@@ -97,7 +101,7 @@ describe('quoteCart', () => {
       const r = quoteCart([line('off2', 99)], products, cfg);
       expect(!r.ok && r.error.code).toBe('INACTIVE_PRODUCT');
     });
-    it('première erreur dans l\'ordre des lignes', () => {
+    it("première erreur dans l'ordre des lignes", () => {
       const r = quoteCart([line('cola', 1), line('fantome', 1), line('eau', 0)], products, cfg);
       expect(r).toEqual({ ok: false, error: { code: 'UNKNOWN_PRODUCT', lineIndex: 1 } });
     });

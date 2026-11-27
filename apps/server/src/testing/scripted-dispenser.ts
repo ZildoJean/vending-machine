@@ -15,7 +15,8 @@ export class ScriptedDispenser implements Dispenser {
 
 export const failAt =
   (k: number, reason = 'JAM'): Script =>
-  (_req, i) => (i === k ? { delivered: false, reason } : { delivered: true });
+  (_req, i) =>
+    i === k ? { delivered: false, reason } : { delivered: true };
 
 export class CapturingLogger implements Logger {
   readonly warns: string[] = [];

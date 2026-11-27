@@ -15,6 +15,27 @@
       "when": 1794860808724,
       "tag": "0001_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794897568326,
+      "tag": "0002_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794897569112,
+      "tag": "0003_security_definer",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794914577254,
+      "tag": "0004_lock_wallet",
+      "breakpoints": true
     }
   ]
 }
