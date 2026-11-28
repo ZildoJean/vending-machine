@@ -2,7 +2,7 @@
 # Trois cibles : `api` (serveur), `web` (Caddy + interface compilée).  Construire : docker build --target api .
 # Pour figer les images par empreinte (recommandé en production), laisser Dependabot (docker) proposer les mises à jour.
 
-FROM node:22-bookworm-slim AS build
+FROM node:26-bookworm-slim AS build
 RUN npm install -g pnpm@12.18.0
 WORKDIR /repo
 # 1. dépendances (couche mise en cache tant que les package.json ne changent pas)
@@ -16,7 +16,7 @@ COPY . .
 RUN pnpm --filter @vending/server build && pnpm --filter @vending/web build
 RUN pnpm --filter @vending/server deploy --prod --legacy /out/api
 
-FROM node:22-bookworm-slim AS api
+FROM node:26-bookworm-slim AS api
 ENV NODE_ENV=production PORT=3000 HOST=0.0.0.0
 WORKDIR /app
 COPY --from=build --chown=node:node /out/api/node_modules ./node_modules
