@@ -1,0 +1,169 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Droits minimaux par défaut : chaque tâche n'a accès qu'en lecture au dépôt.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Types, lint, format, tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vending
+          POSTGRES_PASSWORD: vending
+          POSTGRES_DB: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U vending"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_PG_ADMIN_URL: postgres://vending:vending@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Types + ESLint + Prettier + tests
+        run: pnpm check
+      - name: Tests HTTP sous le rôle applicatif RESTREINT (comme en production)
+        run: pnpm --filter @vending/server test:approle
+      - name: Compilation de production (serveur + interface)
+        run: pnpm --filter @vending/server build && pnpm build
+
+  audit:
+    name: Audit des dépendances
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Vulnérabilités connues (production, gravité haute ou critique)
+        run: pnpm audit --prod --audit-level high
+
+  secrets:
+    name: Analyse de secrets
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  docker:
+    name: Images et déploiement (compose + test de fumée)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+      - name: Compose valide
+        run: docker compose -f docker-compose.prod.yml -f docker-compose.tunnel.yml --env-file .env.prod.example config -q
+      - name: Secrets de test (jamais ceux de production)
+        run: |
+          cp .env.prod.example .env.prod
+          ./deploy/gen-secrets.sh
+          sed -i 's|^SITE_ADDRESS=.*|SITE_ADDRESS=http://:8080|; s|^ALLOWED_ORIGINS=.*|ALLOWED_ORIGINS=http://localhost:8080|' .env.prod
+      - name: Construction et démarrage
+        run: docker compose -f docker-compose.prod.yml -f docker-compose.tunnel.yml --env-file .env.prod up -d --build
+      - name: Attente de disponibilité
+        run: |
+          for i in $(seq 1 90); do
+            curl -fs http://localhost:8080/api/health && exit 0
+            sleep 2
+          done
+          echo "L'application n'est pas devenue disponible"; exit 1
+      - name: Administrateur de test puis test de fumée complet
+        env:
+          ADMIN_LOGIN: ci-admin
+          ADMIN_PASSWORD: ci-Un-bon-mot-de-passe-42
+        run: |
+          docker compose -f docker-compose.prod.yml -f docker-compose.tunnel.yml --env-file .env.prod \
+            run --rm -e ADMIN_LOGIN -e ADMIN_PASSWORD api node dist/seed-admin.js
+          BASE_URL=http://localhost:8080 API_PREFIX=/api node scripts/smoke.mjs
+      - name: Journaux en cas d'échec
+        if: failure()
+        run: docker compose -f docker-compose.prod.yml -f docker-compose.tunnel.yml --env-file .env.prod logs --no-color --tail=200
+
+  e2e:
+    name: Tests de bout en bout (navigateurs réels)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vending
+          POSTGRES_PASSWORD: vending
+          POSTGRES_DB: vending_e2e
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U vending"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      MIGRATION_DATABASE_URL: postgres://vending:vending@localhost:5432/vending_e2e
+      DATABASE_URL: postgres://vending_app:ci-app-password-123@localhost:5432/vending_e2e
+      APP_DB_PASSWORD: ci-app-password-123
+      PIN_PEPPER: ci-pepper-ci-pepper-ci-pepper-ci-pepper-1234
+      E2E_ADMIN_LOGIN: ci-admin
+      E2E_ADMIN_PASSWORD: ci-Un-bon-mot-de-passe-42
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Compilation, migrations, rôle restreint, administrateur
+        run: |
+          pnpm --filter @vending/server build
+          pnpm --filter @vending/server db:migrate:prod
+          pnpm --filter @vending/server db:roles:prod
+          ADMIN_LOGIN="$E2E_ADMIN_LOGIN" ADMIN_PASSWORD="$E2E_ADMIN_PASSWORD" node apps/server/dist/seed-admin.js
+      - name: Navigateurs
+        run: pnpm --filter @vending/web exec playwright install --with-deps chromium firefox
+      - name: Parcours Playwright (accessibilité avec contraste, achat, mobile 375 px)
+        run: pnpm --filter @vending/web e2e
+      - name: Rapport en cas d'échec
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report
+          retention-days: 7

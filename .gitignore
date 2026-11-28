@@ -4,3 +4,7 @@ dist
 *.db-wal
 *.db-shm
 .env
+
+playwright-report
+test-results
+apps/web/e2e/.state.json

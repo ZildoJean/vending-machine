@@ -1,0 +1,75 @@
+# Déploiement sur UNE machine : base, migrations, API, point d'entrée HTTPS.
+#   cp .env.prod.example .env.prod && ./deploy/gen-secrets.sh   (puis éditer SITE_ADDRESS et ALLOWED_ORIGINS)
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+# Derrière un tunnel (Tailscale Funnel, Cloudflare Tunnel) : ajouter  -f docker-compose.tunnel.yml
+name: vending
+
+services:
+  db:
+    image: postgres:16-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    # jamais publiée sur l'hôte : seule l'API (réseau interne) y accède
+
+  # Tâche unique : migrations (rôle PROPRIÉTAIRE) puis rôle applicatif restreint. Relancée à chaque déploiement.
+  migrate:
+    build: { context: ., target: api }
+    restart: 'no'
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      MIGRATION_DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD}
+    command: ['sh', '-c', 'node dist/migrate.js && node dist/setup-roles.js']
+
+  api:
+    build: { context: ., target: api }
+    restart: unless-stopped
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://vending_app:${APP_DB_PASSWORD}@db:5432/${POSTGRES_DB}
+      PIN_PEPPER: ${PIN_PEPPER}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      TRUST_PROXY: 'true'
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    expose: ['3000']
+    read_only: true
+    tmpfs: ['/tmp']
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    mem_limit: 512m
+
+  web:
+    build: { context: ., target: web }
+    restart: unless-stopped
+    depends_on:
+      api: { condition: service_healthy }
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS}
+      API_UPSTREAM: api:3000
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: ['no-new-privileges:true']
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

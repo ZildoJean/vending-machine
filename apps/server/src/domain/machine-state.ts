@@ -33,8 +33,7 @@ export type MachineEvent =
  * donc écrire `result.state` dans tous les cas.
  */
 export type TransitionResult =
-  | { readonly ok: true; readonly state: MachineState }
-  | { readonly ok: false; readonly error: MachineError; readonly state: MachineState };
+  { readonly ok: true; readonly state: MachineState } | { readonly ok: false; readonly error: MachineError; readonly state: MachineState };
 
 export const IDLE: MachineState = { kind: 'IDLE' };
 
@@ -77,12 +76,7 @@ export function isExpired(s: MachineState, now: number, cfg: TimeoutConfig): boo
  *  - LOGOUT / EXIT_MAINTENANCE : succès (l'intention est déjà satisfaite) ;
  *  - ACTIVITY / START_DISPENSE : SESSION_EXPIRED, état ramené à IDLE.
  */
-export function transition(
-  s: MachineState,
-  e: MachineEvent,
-  now: number,
-  cfg: TimeoutConfig,
-): TransitionResult {
+export function transition(s: MachineState, e: MachineEvent, now: number, cfg: TimeoutConfig): TransitionResult {
   assertNow(now);
   if (!isExpired(s, now, cfg)) return apply(s, e, now);
 
@@ -139,9 +133,7 @@ function fromSelecting(s: Selecting, e: MachineEvent, now: number): TransitionRe
     case 'CLIENT_ACTIVITY':
       return e.userId === s.userId ? accept({ ...s, lastActivityAt: touch }) : refuse('NOT_OWNER', s);
     case 'START_DISPENSE':
-      return e.userId === s.userId
-        ? accept({ ...s, phase: 'DISPENSING', lastActivityAt: touch })
-        : refuse('NOT_OWNER', s);
+      return e.userId === s.userId ? accept({ ...s, phase: 'DISPENSING', lastActivityAt: touch }) : refuse('NOT_OWNER', s);
     case 'FORCE_CLOSE':
       return accept(IDLE);
     case 'ENTER_MAINTENANCE':
@@ -185,9 +177,7 @@ function fromMaintenance(s: Maintenance, e: MachineEvent, now: number): Transiti
     case 'EXIT_MAINTENANCE':
       return e.adminId === s.adminId ? accept(IDLE) : refuse('NOT_OWNER', s);
     case 'ADMIN_ACTIVITY':
-      return e.adminId === s.adminId
-        ? accept({ ...s, lastActivityAt: Math.max(s.lastActivityAt, now) })
-        : refuse('NOT_OWNER', s);
+      return e.adminId === s.adminId ? accept({ ...s, lastActivityAt: Math.max(s.lastActivityAt, now) }) : refuse('NOT_OWNER', s);
     case 'LOGOUT_CLIENT':
     case 'CLIENT_ACTIVITY':
     case 'START_DISPENSE':
@@ -196,4 +186,25 @@ function fromMaintenance(s: Maintenance, e: MachineEvent, now: number): Transiti
     case 'END_DISPENSE':
       return refuse('TRANSITION_FORBIDDEN', s);
   }
+}
+
+export function statesEqual(a: MachineState, b: MachineState): boolean {
+  if (a.kind !== b.kind) return false;
+  switch (a.kind) {
+    case 'IDLE':
+      return true;
+    case 'CLIENT_ACTIVE': {
+      const o = b as Extract<MachineState, { kind: 'CLIENT_ACTIVE' }>;
+      return a.userId === o.userId && a.startedAt === o.startedAt && a.lastActivityAt === o.lastActivityAt && a.phase === o.phase;
+    }
+    case 'MAINTENANCE': {
+      const o = b as Extract<MachineState, { kind: 'MAINTENANCE' }>;
+      return a.adminId === o.adminId && a.startedAt === o.startedAt && a.lastActivityAt === o.lastActivityAt;
+    }
+  }
+}
+
+/** Ramène une session expirée à IDLE (utilisé par la lecture de l'état, sans événement). */
+export function settle(s: MachineState, now: number, cfg: TimeoutConfig): MachineState {
+  return isExpired(s, now, cfg) ? IDLE : s;
 }

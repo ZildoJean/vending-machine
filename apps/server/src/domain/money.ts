@@ -1,11 +1,5 @@
 import { err, ok } from '@vending/shared';
-import type {
-  AmountError,
-  DepositError,
-  MoneyConfig,
-  PriceError,
-  Result,
-} from '@vending/shared';
+import type { AmountError, DepositError, MoneyConfig, PriceError, Result } from '@vending/shared';
 
 /**
  * Valide un montant venant de l'extérieur (réseau). `unknown` volontaire :
@@ -24,11 +18,7 @@ export function validateAmount(n: unknown, cfg: MoneyConfig): Result<number, Amo
  * Un billet qui ferait dépasser le plafond est rejeté en entier (rien n'est crédité).
  * Un solde invalide est un bug (donnée corrompue), pas une erreur utilisateur : on lève.
  */
-export function validateDeposit(
-  balance: number,
-  bill: unknown,
-  cfg: MoneyConfig,
-): Result<number, DepositError> {
+export function validateDeposit(balance: number, bill: unknown, cfg: MoneyConfig): Result<number, DepositError> {
   assertValidBalance(balance, cfg);
 
   const amount = validateAmount(bill, cfg);
@@ -52,12 +42,7 @@ export function validatePrice(price: unknown, cfg: MoneyConfig): Result<number, 
 
 /** Invariant du wallet : entier, >= 0, multiple du pas, <= plafond. */
 export function assertValidBalance(balance: number, cfg: MoneyConfig): void {
-  if (
-    !Number.isSafeInteger(balance) ||
-    balance < 0 ||
-    balance % cfg.step !== 0 ||
-    balance > cfg.walletCap
-  ) {
+  if (!Number.isSafeInteger(balance) || balance < 0 || balance % cfg.step !== 0 || balance > cfg.walletCap) {
     throw new Error(`Invariant violé : solde invalide (${String(balance)})`);
   }
 }
